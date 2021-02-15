@@ -11,29 +11,42 @@ import bcl
 class protocol:
     @staticmethod
     def enrich_step_one(value_scalar):
-        (value, scalar) = value_scalar
+        (value, session) = value_scalar
         point = oblivious.point(base64.standard_b64decode(value)) 
-        return [[base64.standard_b64encode(scalar * point).decode('utf-8')]]
+        return [[base64.standard_b64encode(session.scalar * point).decode('utf-8')]]
 
     @staticmethod
     def enrich_step_two(value_scalar):
-        (value, scalar, scalar_for_key) = value_scalar
+        (value, session) = value_scalar
         secret_key = oblivious.point()
-        secret_key_masked = scalar_for_key * secret_key
+        secret_key_masked = session.scalar_for_key * secret_key
         point = oblivious.point.hash(value[0].encode())
         row = value
-        row[0] = base64.standard_b64encode(scalar * point).decode('utf-8')
+        row[0] = base64.standard_b64encode(session.scalar * point).decode('utf-8')
         row.extend([
             base64.standard_b64encode(secret_key_masked).decode('utf-8'),
-            base64.standard_b64encode(bcl.symmetric.encrypt(secret_key, row[1].encode())).decode('utf-8'),
-            base64.standard_b64encode(bcl.symmetric.encrypt(secret_key, row[2].encode())).decode('utf-8')
+            base64.standard_b64encode(
+                bcl.symmetric.encrypt(secret_key, row[1].encode())
+            ).decode('utf-8'),
+            base64.standard_b64encode(
+                bcl.symmetric.encrypt(secret_key, row[2].encode())
+            ).decode('utf-8')
         ])
         return [row]
 
     @staticmethod
     def enrich_step_three(value_scalar):
-        ((p, k), scalar, scalar_for_key) = value_scalar
+        ((p, k), session) = value_scalar
         return [[
-            base64.standard_b64encode(~scalar * oblivious.point(base64.standard_b64decode(p))).decode('utf-8'), 
-            base64.standard_b64encode(~scalar_for_key * oblivious.point(base64.standard_b64decode(k))).decode('utf-8')
+            base64.standard_b64encode(
+                ~session.scalar * oblivious.point(base64.standard_b64decode(p))
+            ).decode('utf-8'), 
+            base64.standard_b64encode(
+                ~session.scalar_for_key * oblivious.point(base64.standard_b64decode(k))
+            ).decode('utf-8')
         ]]
+
+class session:
+    def __init__(self):
+        self.scalar = oblivious.scalar()
+        self.scalar_for_key = oblivious.scalar()
