@@ -1,2 +1,2 @@
 # nth.associates
-Client and server components for a secure data association and enrichment service.
+Client-side and service-side components for a secure data association and enrichment service.
