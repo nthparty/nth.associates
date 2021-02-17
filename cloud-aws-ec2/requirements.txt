@@ -1,6 +1,3 @@
-mr4mp>=1.0.0
-oblivious>=2.0.1
-bcl>=0.1.1
-faker
 tqdm
 flask
+faker

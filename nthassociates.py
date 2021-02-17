@@ -6,6 +6,7 @@ secure data association and enrichment service-side component.
 
 import base64
 import json
+import mr4mp
 import oblivious
 import bcl
 
@@ -46,6 +47,42 @@ class protocol:
                 ~session.scalar_for_key * oblivious.point(base64.standard_b64decode(k))
             ).decode('utf-8')
         ]]
+
+    @staticmethod
+    def step(session, request):
+        if 'step_one' in request:
+            req = request['step_one']
+
+            data_masked_at_cli_masked_at_srv = mr4mp.mapconcat(
+                protocol.enrich_step_one,
+                [(v, session) for v in req['data@cli;masked@cli']]
+            )
+
+            data_srv_masked = mr4mp.mapconcat(
+                protocol.enrich_step_two,
+                [(v, session) for v in session.data]
+            )
+
+            return {
+              "data@cli;masked@cli;masked@srv": data_masked_at_cli_masked_at_srv,
+              "data@srv;masked@srv": data_srv_masked
+            }
+
+        if 'step_two' in request:
+            req = request['step_two']
+
+            data_srv = req["data@srv;masked@srv;masked@cli"]
+
+            data_srv = mr4mp.mapconcat(
+                protocol.enrich_step_three,
+                [(v, session) for v in data_srv]
+            )
+
+            data_srv = [[p, k] for [p, k] in data_srv if p in req["data@cli;masked@cli"]]
+
+            return {"final": data_srv}
+
+        return None
 
 class session:
     def __init__(self, path=None):
