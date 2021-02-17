@@ -5,6 +5,7 @@ secure data association and enrichment service-side component.
 """
 
 import base64
+import json
 import oblivious
 import bcl
 
@@ -47,6 +48,12 @@ class protocol:
         ]]
 
 class session:
-    def __init__(self):
+    def __init__(self, path=None):
         self.scalar = oblivious.scalar()
         self.scalar_for_key = oblivious.scalar()
+        self.path = path
+        self.data = None
+        
+        if self.path is not None:
+            with open(self.path) as path_file:
+                self.data = json.load(path_file)

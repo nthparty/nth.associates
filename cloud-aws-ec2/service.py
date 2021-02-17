@@ -7,20 +7,12 @@ from flask import Flask, send_file, request, jsonify
 
 import nthassociates
 
-session = nthassociates.session()
+session = nthassociates.session(path='data-service.json')
 
 app = Flask(__name__)
 
-# Contribute masked data.
-global data_srv
-data_srv = None
-with open('data-service.json') as test_file:
-    data_srv = json.load(test_file)
-
 @app.route("/enrich", methods=['POST', 'GET'])
 def enrich():
-    global data_srv
-
     req = request.get_json()
 
     if req is not None:
@@ -34,7 +26,7 @@ def enrich():
 
             data_srv_masked = mr4mp.mapconcat(
                 nthassociates.protocol.enrich_step_two,
-                [(v, session) for v in data_srv]
+                [(v, session) for v in session.data]
             )
 
             return jsonify({
