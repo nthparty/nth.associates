@@ -523,9 +523,26 @@ function App(config) {
       self.sheets.self.data(res_f, false, true);
 
       self.cards.complete(".card-step-two", "#card-step-two-action-button");
-      self.cards.activate(".card-step-three");
-      self.buttons.enable("#card-step-three-action-button");
       $("#card-data-header-content").html("View your enriched data");
+
+      const result_count = res_f.length;
+      var correct = 0;
+      for (var i = 0; i < res_f.length; i++) {
+        correct += (res_f[i][1] == res_f[i][3] && res_f[i][2] == res_f[i][4]) ? 1 : 0;
+      }
+
+      const percentage = (100 * correct) / self.session.data.points.length;
+      self.cards.message(
+        ".card-step-two",
+        '<span class="percentage">' + percentage.toFixed(3) + "%</span> " +
+        '<span class="count">' +
+          "or <b>" + correct + "</b> of the " +
+          "<b>" + self.session.data.points.length + "</b> entries in your " +
+          " data have correct demographic information" +
+          " and <b>" + (result_count - correct) + "</b> entries can be enriched or corrected." +
+        '</span>'
+      );
+
       self.modal.hide();
     }
   }
