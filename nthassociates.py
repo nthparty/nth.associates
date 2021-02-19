@@ -12,13 +12,13 @@ import bcl
 
 class protocol:
     @staticmethod
-    def enrich_step_one(value_scalar):
+    def mask_client_row(value_scalar):
         (value, session) = value_scalar
         point = oblivious.point(base64.standard_b64decode(value)) 
         return [[base64.standard_b64encode(session.scalar * point).decode('utf-8')]]
 
     @staticmethod
-    def enrich_step_two(value_scalar):
+    def enrich_client_row(value_scalar):
         (value, session) = value_scalar
         secret_key = oblivious.point()
         secret_key_masked = session.scalar_for_key * secret_key
@@ -37,7 +37,7 @@ class protocol:
         return [row]
 
     @staticmethod
-    def enrich_step_three(value_scalar):
+    def unlock_service_row_key(value_scalar):
         ((p, k), session) = value_scalar
         return [[
             base64.standard_b64encode(
@@ -49,17 +49,17 @@ class protocol:
         ]]
 
     @staticmethod
-    def step(session, request):
+    def reply(session, request):
         if 'step_one' in request:
             req = request['step_one']
 
             data_masked_at_cli_masked_at_srv = mr4mp.mapconcat(
-                protocol.enrich_step_one,
+                protocol.mask_client_row,
                 [(v, session) for v in req['data@cli;masked@cli']]
             )
 
             data_srv_masked = mr4mp.mapconcat(
-                protocol.enrich_step_two,
+                protocol.enrich_client_row,
                 [(v, session) for v in session.data]
             )
 
@@ -74,13 +74,13 @@ class protocol:
             data_srv = req["data@srv;masked@srv;masked@cli"]
 
             data_srv = mr4mp.mapconcat(
-                protocol.enrich_step_three,
+                protocol.unlock_service_row_key,
                 [(v, session) for v in data_srv]
             )
 
             data_srv = [[p, k] for [p, k] in data_srv if p in req["data@cli;masked@cli"]]
 
-            return {"final": data_srv}
+            return {"keys@srv": data_srv}
 
         return None
 

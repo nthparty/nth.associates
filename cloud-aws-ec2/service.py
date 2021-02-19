@@ -9,7 +9,7 @@ app = Flask(__name__)
 @app.route("/enrich", methods=['POST', 'GET'])
 def enrich():
     request_ = request.get_json()
-    reply = nthassociates.protocol.step(session, request_)
+    reply = nthassociates.protocol.reply(session, request_)
     return jsonify({"status": "nothing"} if reply is None else reply)
 
 @app.route("/<path:file_name>")
