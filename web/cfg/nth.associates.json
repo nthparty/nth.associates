@@ -1,0 +1,18 @@
+{
+  "domain": "nth.associates",
+  "version": "alpha",
+  "tagline": "The easy and safe way to <b>enrich data</b> without decrypting it in the process.",
+  "collection": "nth-link",
+  "maximumCSVFileSize": "50 * 1024 * 1024",
+  "maximumCSVRowCount": 100000,
+  "operations": {"toggleFirstRow": true, "domain": false, "join": true, "groupBy": false},
+  "simulatedDataSizes": [50, 500, 5000],
+  "socialMediaSharing": false,
+  "signup": false,
+  "analysisResultsFeedbackSurveyLink": false,
+  "offboard": false,
+  "offboardEmbeddedFeedbackSurvey": false,
+  "obfuscate": false,
+  "gtagId": "G-YYFNCX1979",
+  "key": "HYqNO2iUl"
+}
