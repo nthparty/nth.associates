@@ -98,20 +98,30 @@ function Session(app, state, selfRoles) {
 
       // Do not shuffle keyed data before contributing.
       stepResult.data.masked.keyed = data;
+
+      var keys = [];
+      stepResult.data.keys = await self.app.mapAsyncWithProgress(function (rowPlain) {
+        const key = sodium.randombytes_buf(32);
+        keys.push(key);
+        return sodium.to_base64(key, 1);
+      }, self.data.clear);
+
       const columnJoin = self.app.data.columnJoin();
+      var i = 0;
       stepResult.data.enriching = await self.app.mapAsyncWithProgress(function (rowPlain) {
         var row = [];
         for (var j = 0; j < rowPlain.length; j++)  {
           if (j != columnJoin) {
             const bytes = sodium.from_string(rowPlain[j]);
             const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
-            const cipher_ = sodium.crypto_secretbox_easy(bytes, nonce, key);
+            const cipher_ = sodium.crypto_secretbox_easy(bytes, nonce, keys[i]);
             const cipher = new Uint8Array(nonce.length + cipher_.length);
             cipher.set(nonce);
             cipher.set(cipher_, nonce.length);              
             row.push(sodium.to_base64(cipher, 1));
           }
         }
+        i += 1;
         return row;
       }, self.data.clear);
     }
@@ -121,8 +131,6 @@ function Session(app, state, selfRoles) {
 
   this.stepTwo = async function (message) {
     var stepResult = { "other": { "roles": self.other.roles } };
-
-    const key = sodium.crypto_core_ristretto255_from_hash(sodium.crypto_generichash(64, sodium.from_string("0")));
 
     // If we are a recipient, obtain the data and compute the result.
     if (
@@ -155,6 +163,7 @@ function Session(app, state, selfRoles) {
           const row_enriching = message.data.enriching[j];
           for (var k = 0; k < row_enriching.length; k++)  {
             try {
+              const key = sodium.from_base64(message.data.keys[j], 1);
               const nonceCipher = sodium.from_base64(row_enriching[k], 1);
               const nonce = nonceCipher.slice(0, 24);
               const cipher = nonceCipher.slice(24);
