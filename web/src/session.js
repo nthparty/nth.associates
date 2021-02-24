@@ -84,6 +84,8 @@ function Session(app, state, selfRoles) {
   this.stepOne = async function (message) {
     var stepResult = { "data": { "masked": { "keyed": {} } } };
 
+    const key = sodium.crypto_core_ristretto255_from_hash(sodium.crypto_generichash(64, sodium.from_string("0")));
+
     // If we are the recipient, retrieve other contributor's keyed data.
     if (self.roles.includes("recipient")) {
       self.other.data.keyed_by_other = await self.app.mapAsyncWithProgress(self.protocol.decode, message.data.keyed);
@@ -96,20 +98,22 @@ function Session(app, state, selfRoles) {
 
       // Do not shuffle keyed data before contributing.
       stepResult.data.masked.keyed = data;
-      
-      var enriching = [];
       const columnJoin = self.app.data.columnJoin();
-      for (var i = 0; i < self.data.clear.length; i++) {
+      stepResult.data.enriching = await self.app.mapAsyncWithProgress(function (rowPlain) {
         var row = [];
-        for (var j = 0; j < self.data.clear[i].length; j++)  {
+        for (var j = 0; j < rowPlain.length; j++)  {
           if (j != columnJoin) {
-            row.push(sodium.to_base64(sodium.from_string(self.data.clear[i][j]), 1));
+            const bytes = sodium.from_string(rowPlain[j]);
+            const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
+            const cipher_ = sodium.crypto_secretbox_easy(bytes, nonce, key);
+            const cipher = new Uint8Array(nonce.length + cipher_.length);
+            cipher.set(nonce);
+            cipher.set(cipher_, nonce.length);              
+            row.push(sodium.to_base64(cipher, 1));
           }
         }
-        enriching.push(row);
-      }
-
-      stepResult.data.enriching = enriching;
+        return row;
+      }, self.data.clear);
     }
 
     return stepResult;
@@ -117,6 +121,8 @@ function Session(app, state, selfRoles) {
 
   this.stepTwo = async function (message) {
     var stepResult = { "other": { "roles": self.other.roles } };
+
+    const key = sodium.crypto_core_ristretto255_from_hash(sodium.crypto_generichash(64, sodium.from_string("0")));
 
     // If we are a recipient, obtain the data and compute the result.
     if (
@@ -138,21 +144,29 @@ function Session(app, state, selfRoles) {
       self.app.progress.message("Computing the analysis results.");
 
       // Add the entry to the intersection if appropriate to do so.
-      stepResult.intersection = [];
       stepResult.count = 0;
-      for (var i = 0; i < self.data.clear.length; i++) {
-        var item = self.data.keyed_by_other[i];
-        var row = self.data.clear[i];
-        var j = self.other.data.keyed_by_other.indexOf(item);
+      var i = 0;
+      stepResult.intersection = await self.app.mapAsyncWithProgress(function (row) {
+        const item = self.data.keyed_by_other[i];
+        i += 1;
+        const j = self.other.data.keyed_by_other.indexOf(item);
         if (j != -1) {
           stepResult.count += 1;
-          var row_enriching = message.data.enriching[j];
+          const row_enriching = message.data.enriching[j];
           for (var k = 0; k < row_enriching.length; k++)  {
-            row.push(sodium.to_string(sodium.from_base64(row_enriching[k], 1)));
+            try {
+              const nonceCipher = sodium.from_base64(row_enriching[k], 1);
+              const nonce = nonceCipher.slice(0, 24);
+              const cipher = nonceCipher.slice(24);
+              row.push(sodium.to_string(sodium.crypto_secretbox_open_easy(cipher, nonce, key)));
+            }  catch (err) {
+              console.log(err);
+              row.push("");
+            }
           }
         }
-        stepResult.intersection.push(row);
-      }
+        return row;
+      }, self.data.clear);      
     }
 
     return stepResult;
