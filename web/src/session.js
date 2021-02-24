@@ -107,8 +107,7 @@ function Session(app, state, selfRoles) {
       }, self.data.clear);
 
       const columnJoin = self.app.data.columnJoin();
-      var i = 0;
-      stepResult.data.enriching = await self.app.mapAsyncWithProgress(function (rowPlain) {
+      stepResult.data.enriching = await self.app.mapAsyncWithProgress(function (rowPlain, i) {
         var row = [];
         for (var j = 0; j < rowPlain.length; j++)  {
           if (j != columnJoin) {
@@ -121,7 +120,6 @@ function Session(app, state, selfRoles) {
             row.push(sodium.to_base64(cipher, 1));
           }
         }
-        i += 1;
         return row;
       }, self.data.clear);
     }
@@ -153,10 +151,8 @@ function Session(app, state, selfRoles) {
 
       // Add the entry to the intersection if appropriate to do so.
       stepResult.count = 0;
-      var i = 0;
-      stepResult.intersection = await self.app.mapAsyncWithProgress(function (row) {
+      stepResult.intersection = await self.app.mapAsyncWithProgress(function (row, i) {
         const item = self.data.keyed_by_other[i];
-        i += 1;
         const j = self.other.data.keyed_by_other.indexOf(item);
         if (j != -1) {
           stepResult.count += 1;

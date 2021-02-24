@@ -55,7 +55,7 @@ function App(config) {
     var i = null;
 
     for (i = index; i < arr.length && (i - index) < portion; i++) {
-      arr_.push(fn(arr[i]));
+      arr_.push(fn(arr[i], i));
     }
     self.progress.advanceByLength(i - index);
 
