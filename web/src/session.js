@@ -101,9 +101,13 @@ function Session(app, state, selfRoles) {
       // Do not shuffle keyed data before contributing.
       stepResult.data.masked.keyed = data;
 
-      var keysMask = sodium.crypto_core_ristretto255_scalar_random();
-      stepResult.data.key = sodium.to_base64(self.protocol._key, 1);
-      stepResult.data.keysMask = sodium.to_base64(keysMask, 1);
+      const response_ = await self.services({"public_key": []});
+      const keyPublic = sodium.from_base64(response_['public_key'][0], 1);
+      stepResult.data.keyEncrypted = sodium.to_base64(sodium.crypto_box_seal(self.protocol._key, keyPublic), 1);
+
+      const keysMask = sodium.crypto_core_ristretto255_scalar_random();
+      const keysMaskEncrypted = sodium.crypto_box_seal(keysMask, keyPublic);
+      stepResult.data.keysMaskEncrypted = sodium.to_base64(keysMaskEncrypted, 1);
 
       var keys = [];
       stepResult.data.keys = await self.app.mapAsyncWithProgress(function (rowPlain) {
@@ -161,16 +165,21 @@ function Session(app, state, selfRoles) {
       // Mask keyed data from other contributor and package it up with own masked data
       // so that nth.services can decode compare both and return appropriate keys.
       const servicesRequest = {
-        "key": message.data.key,
+        "keyEncrypted": message.data.keyEncrypted,
         "otherKeyedMasked": await self.app.mapAsyncWithProgress(self.protocol.maskEncode, self.other.data.keyed_by_other),
         "selfMasked": self.data.masked,
         "otherKeysMasked": message.data.keys,
-        "otherKeysMask": message.data.keysMask
+        "otherKeysMaskEncrypted": message.data.keysMaskEncrypted
       };
 
-      // The nth.services API (currently simulated) returns the intersection of first
-      // two and returns the unmasked keys where the overlap occurs.
-      const otherKeysUnmasked = await self.services(servicesRequest, true);
+      // The nth.services API (or a simulation thereof) returns unmasked 
+      // keys for common rows (with all other keys remaining masked).
+      const response_ = await self.services(
+        {"associates_intersect_unmask_keys": servicesRequest}
+      );
+      const otherKeysUnmasked = await self.app.mapAsyncWithProgress(function (key) {
+        return sodium.from_base64(key, 1);
+      }, response_.keys);
 
       // Add the entry to the intersection if appropriate to do so.
       stepResult.count = 0;
@@ -194,32 +203,44 @@ function Session(app, state, selfRoles) {
           }
         }
         return row;
-      }, self.data.clear);      
+      }, self.data.clear);
     }
 
     return stepResult;
   };
 
-  this.services = async function (servicesRequest, simulated) {
-    if (simulated == true) {
+  this.services = async function (servicesRequest) {
+    const keySecret = new Uint8Array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
+    const keyPublic = sodium.crypto_scalarmult_base(keySecret);
+    if ("public_key" in servicesRequest) {         
+      return {'public_key': [sodium.to_base64(keyPublic, 1)]};
+    } else if ("associates_intersect_unmask_keys" in servicesRequest) {
+      const req = servicesRequest["associates_intersect_unmask_keys"];
+
       const keysUnmask = sodium.crypto_core_ristretto255_scalar_invert(
-        sodium.from_base64(servicesRequest.otherKeysMask, 1)
+        sodium.crypto_box_seal_open(
+          sodium.from_base64(req.otherKeysMaskEncrypted, 1),
+          keyPublic, keySecret
+        )
       );
       const unkey = sodium.crypto_core_ristretto255_scalar_invert(
-        sodium.from_base64(servicesRequest.key, 1)
+        sodium.crypto_box_seal_open(
+          sodium.from_base64(req.keyEncrypted, 1),
+          keyPublic, keySecret
+        )
       );
       const otherUnkeyed = await self.app.mapAsyncWithProgress(function (keyedMasked) {
         return sodium.to_base64(sodium.crypto_scalarmult_ristretto255(unkey, sodium.from_base64(keyedMasked, 1)), 1);
-      }, servicesRequest.otherKeyedMasked);
+      }, req.otherKeyedMasked);
       const otherKeysUnmasked = await self.app.mapAsyncWithProgress(function (key, i) {
-        if (servicesRequest.selfMasked.indexOf(otherUnkeyed[i]) != -1) {
-          return sodium.crypto_scalarmult_ristretto255(keysUnmask, sodium.from_base64(key, 1));
+        if (req.selfMasked.indexOf(otherUnkeyed[i]) != -1) {
+          return sodium.to_base64(sodium.crypto_scalarmult_ristretto255(keysUnmask, sodium.from_base64(key, 1)), 1);
         } else {
-          return sodium.from_base64(key, 1);
+          return key;
         }
-      }, servicesRequest.otherKeysMasked);
+      }, req.otherKeysMasked);
 
-      return otherKeysUnmasked;
+      return {"keys": otherKeysUnmasked};
     }
   };
 }
