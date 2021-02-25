@@ -23,6 +23,7 @@ function Session(app, state, selfRoles) {
     "roles": []
   }
   this.protocol = new Protocol(app, state);
+  this.data = {};
 
   /* Methods. */
 
@@ -72,7 +73,8 @@ function Session(app, state, selfRoles) {
     // If we are the recipient, prepare own masked data for transmission.
     if (self.roles.includes("recipient")) {
       // Encrypt the data using own mask.
-      stepResult.data.masked = await self.app.mapAsyncWithProgress(self.protocol.maskEncode, self.data.points);
+      self.data.masked = await self.app.mapAsyncWithProgress(self.protocol.maskEncode, self.data.points);
+      stepResult.data.masked = self.data.masked;
 
       // Display the encrypted data for the user.
       self.app.sheets.self.data(stepResult.data.masked, true);
@@ -99,11 +101,18 @@ function Session(app, state, selfRoles) {
       // Do not shuffle keyed data before contributing.
       stepResult.data.masked.keyed = data;
 
+      var keysMask = sodium.crypto_core_ristretto255_scalar_random();
+      stepResult.data.key = sodium.to_base64(self.protocol._key, 1);
+      stepResult.data.keysMask = sodium.to_base64(keysMask, 1);
+
       var keys = [];
       stepResult.data.keys = await self.app.mapAsyncWithProgress(function (rowPlain) {
-        const key = sodium.randombytes_buf(32);
+        const key = sodium.crypto_core_ristretto255_from_hash(
+          sodium.crypto_generichash(64, sodium.randombytes_buf(32))
+        );
         keys.push(key);
-        return sodium.to_base64(key, 1);
+        const keyMasked = sodium.crypto_scalarmult_ristretto255(keysMask, key);
+        return sodium.to_base64(keyMasked, 1);
       }, self.data.clear);
 
       const columnJoin = self.app.data.columnJoin();
@@ -143,23 +152,37 @@ function Session(app, state, selfRoles) {
       self.data.keyed_by_other = await self.app.mapAsyncWithProgress(self.protocol.decodeUnmask, message.data.masked.keyed);
 
       // Keep only bytes that will intersect.
-      self.other.data.keyed_by_other = await self.app.mapAsyncWithProgress(self.protocol.pointToReducedStr, self.other.data.keyed_by_other);
+      self.other.data.keyed_by_other_ = await self.app.mapAsyncWithProgress(self.protocol.pointToReducedStr, self.other.data.keyed_by_other);
       self.data.keyed_by_other = await self.app.mapAsyncWithProgress(self.protocol.pointToReducedStr, self.data.keyed_by_other);
 
       // Intersect `self.other.data.keyed_by_other` and `self.data.keyed_by_other`.
       self.app.progress.message("Computing the analysis results.");
 
+      // Mask keyed data from other contributor and package it up with own masked data
+      // so that nth.services can decode compare both and return appropriate keys.
+      const servicesRequest = {
+        "key": message.data.key,
+        "otherKeyedMasked": await self.app.mapAsyncWithProgress(self.protocol.maskEncode, self.other.data.keyed_by_other),
+        "selfMasked": self.data.masked,
+        "otherKeysMasked": message.data.keys,
+        "otherKeysMask": message.data.keysMask
+      };
+
+      // The nth.services API (currently simulated) returns the intersection of first
+      // two and returns the unmasked keys where the overlap occurs.
+      const otherKeysUnmasked = await self.services(servicesRequest, true);
+
       // Add the entry to the intersection if appropriate to do so.
       stepResult.count = 0;
       stepResult.intersection = await self.app.mapAsyncWithProgress(function (row, i) {
         const item = self.data.keyed_by_other[i];
-        const j = self.other.data.keyed_by_other.indexOf(item);
+        const j = self.other.data.keyed_by_other_.indexOf(item);
         if (j != -1) {
           stepResult.count += 1;
           const row_enriching = message.data.enriching[j];
           for (var k = 0; k < row_enriching.length; k++)  {
             try {
-              const key = sodium.from_base64(message.data.keys[j], 1);
+              const key = otherKeysUnmasked[j];
               const nonceCipher = sodium.from_base64(row_enriching[k], 1);
               const nonce = nonceCipher.slice(0, 24);
               const cipher = nonceCipher.slice(24);
@@ -175,5 +198,28 @@ function Session(app, state, selfRoles) {
     }
 
     return stepResult;
+  };
+
+  this.services = async function (servicesRequest, simulated) {
+    if (simulated == true) {
+      const keysUnmask = sodium.crypto_core_ristretto255_scalar_invert(
+        sodium.from_base64(servicesRequest.otherKeysMask, 1)
+      );
+      const unkey = sodium.crypto_core_ristretto255_scalar_invert(
+        sodium.from_base64(servicesRequest.key, 1)
+      );
+      const otherUnkeyed = await self.app.mapAsyncWithProgress(function (keyedMasked) {
+        return sodium.to_base64(sodium.crypto_scalarmult_ristretto255(unkey, sodium.from_base64(keyedMasked, 1)), 1);
+      }, servicesRequest.otherKeyedMasked);
+      const otherKeysUnmasked = await self.app.mapAsyncWithProgress(function (key, i) {
+        if (servicesRequest.selfMasked.indexOf(otherUnkeyed[i]) != -1) {
+          return sodium.crypto_scalarmult_ristretto255(keysUnmask, sodium.from_base64(key, 1));
+        } else {
+          return sodium.from_base64(key, 1);
+        }
+      }, servicesRequest.otherKeysMasked);
+
+      return otherKeysUnmasked;
+    }
   };
 }
