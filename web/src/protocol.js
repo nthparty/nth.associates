@@ -14,8 +14,8 @@ function Protocol(app, state) {
 
   this.app = app;
 
-  this.encode_small = sodium.to_base64;
-  this.decode_small = sodium.from_base64;
+  this.encode_small = function (v) { return sodium.to_base64(v, 1); };
+  this.decode_small = function (v) { return sodium.from_base64(v, 1); };
   this.encode_fast = sodium.to_hex;
   this.decode_fast = sodium.from_hex;
 
@@ -68,6 +68,9 @@ function Protocol(app, state) {
     return self.encode(self.key(self.decode(encodedPoint)));
   };
 
+  this.decodeMaskEncode = function (encodedPoint) {
+    return self.encode(self.mask(self.decode(encodedPoint)));
+  };
   this.mask = function (point) {
     return sodium.crypto_scalarmult_ristretto255(self._mask, point);
   };
