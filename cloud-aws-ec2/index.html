@@ -385,6 +385,24 @@ function App(config) {
     });
   };
 
+  this.track_progress = function (i, f) {
+      console.log("Tracking stage #" + (i+1) + " from " + f(0) + "% to " + f(100) + "%.");
+      (function track_progress(waiting) {
+        $.getJSON('/status', function (response) {
+          let percent = response.progress[i];
+          if (f(0) <= percent && percent < f(100)) {
+            self.progress.setIndexByPercent(f(percent));
+            setTimeout(track_progress.bind(this, false), 200);  // Poll for further updates.
+          } else if (waiting) {
+            setTimeout(track_progress.bind(this, true), 250);  // Poll for stage #i kickoff.
+          } else {
+            self.progress.setIndexByPercent(f(100));  // Done.
+            console.log("Completed stage #" + (i+1) + " at " + f(100) + "%.");
+          }
+        });
+      })(true);
+    }
+
   this.stages = async function (stage) {
     var roles = ["contributor", "recipient"];
 
@@ -400,7 +418,7 @@ function App(config) {
       self.session = new Session(self, self.state, roles);
       let prepared = await self.session.prepareSelfData(data);
 
-      self.progress.setLength(self.session.data.points.length * 6);
+      self.progress.setLength(self.session.data.points.length * 6 * 2);  // x2 for half client half service
 
       var req = {
         "data@cli;masked@cli": {}
@@ -415,6 +433,9 @@ function App(config) {
       self.sheets.self.data(req["data@cli;masked@cli"], true);
 
       self.progress.message("Contributing encrypted data and awaiting encrypted results.");
+      let existing_progress = (100 * this.progress.index) / this.progress.length;
+      this.track_progress(0, x => (x/3 + 0.0)/2 + existing_progress);
+      this.track_progress(1, x => (x/3 + 33.333)/2 + existing_progress);
       const response = await self.io.give({
         msg: {"step_one": req},
         update_progress: true
@@ -485,6 +506,8 @@ function App(config) {
       }, self.session.data.points);
 
       self.progress.message("Waiting for decryption keys that can decrypt results.");
+      existing_progress = (100 * this.progress.index) / this.progress.length;
+      this.track_progress(2, x => x/3/2 + existing_progress);
       const response_two = await self.io.give({
         msg: {"step_two": req_two},
         update_progress: true
@@ -1101,6 +1124,11 @@ function Progress(length) {
 
   this.setPercent = function (percent) {
     $("#progress-overall-bar").css("width", percent+"%").attr("aria-valuenow", percent);
+  };
+
+  this.setIndexByPercent = function (percent) {
+    this.index = (percent * this.length) / 100.0;
+    this.setPercent(percent);
   };
 
   this.setLength = function (length) {

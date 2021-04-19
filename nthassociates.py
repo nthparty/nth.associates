@@ -49,18 +49,26 @@ class protocol:
         ]]
 
     @staticmethod
-    def reply(session, request):
+    def reply(session, request, progress):
         if 'step_one' in request:
             req = request['step_one']
 
+            progress[0].reset()
+
             data_masked_at_cli_masked_at_srv = mr4mp.mapconcat(
                 protocol.mask_client_row,
-                [(v, session) for v in req['data@cli;masked@cli']]
+                [(v, session) for v in req['data@cli;masked@cli']],
+                progress=progress[0].hook,
+                stages=progress[0].stages
             )
+
+            progress[1].reset()
 
             data_srv_masked = mr4mp.mapconcat(
                 protocol.enrich_client_row,
-                [(v, session) for v in session.data]
+                [(v, session) for v in session.data],
+                progress=progress[1].hook,
+                stages=progress[1].stages
             )
 
             return {
@@ -70,12 +78,16 @@ class protocol:
 
         if 'step_two' in request:
             req = request['step_two']
+            
+            progress[2].reset()
 
             data_srv = req["data@srv;masked@srv;masked@cli"]
 
             data_srv = mr4mp.mapconcat(
                 protocol.unlock_service_row_key,
-                [(v, session) for v in data_srv]
+                [(v, session) for v in data_srv],
+                progress=progress[2].hook,
+                stages=progress[2].stages
             )
 
             data_srv = [[p, k] for [p, k] in data_srv if p in req["data@cli;masked@cli"]]
