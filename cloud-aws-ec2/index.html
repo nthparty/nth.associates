@@ -388,13 +388,13 @@ function App(config) {
   this.update_progress = function (i, f) {
       console.log("Tracking stage #" + (i+1) + " from " + f(0) + "% to " + f(100) + "%.");
       (function update_progress(waiting) {
-        $.getJSON('http://127.0.0.1:8080/status', function (response) {
+        $.getJSON('/status', function (response) {
           let percent = response.progress[i];
           if (percent < 100.0) {
             self.progress.setPercent(f(percent));
             setTimeout(update_progress.bind(this, false), 1);  // Poll for further updates.
           } else if (waiting) {
-            setTimeout(update_progress.bind(this, true), 1);  // Poll for start.
+            setTimeout(update_progress.bind(this, true), 1);  // Poll for stage #i kickoff.
           } else {
             self.progress.setPercent(f(100));  // Done.
           }
