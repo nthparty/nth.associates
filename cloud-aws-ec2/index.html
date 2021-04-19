@@ -385,6 +385,23 @@ function App(config) {
     });
   };
 
+  this.update_progress = function (i, f) {
+      console.log("Tracking stage #" + (i+1) + " from " + f(0) + "% to " + f(100) + "%.");
+      (function update_progress(waiting) {
+        $.getJSON('http://127.0.0.1:8080/status', function (response) {
+          let percent = response.progress[i];
+          if (percent < 100.0) {
+            self.progress.setPercent(f(percent));
+            setTimeout(update_progress.bind(this, false), 1);  // Poll for further updates.
+          } else if (waiting) {
+            setTimeout(update_progress.bind(this, true), 1);  // Poll for start.
+          } else {
+            self.progress.setPercent(f(100));  // Done.
+          }
+        });
+      })(true);
+    }
+
   this.stages = async function (stage) {
     var roles = ["contributor", "recipient"];
 
@@ -415,6 +432,8 @@ function App(config) {
       self.sheets.self.data(req["data@cli;masked@cli"], true);
 
       self.progress.message("Contributing encrypted data and awaiting encrypted results.");
+      this.update_progress(0, x => x/3);
+      this.update_progress(1, x => x/3 + 33.333);
       const response = await self.io.give({
         msg: {"step_one": req},
         update_progress: true
@@ -485,6 +504,7 @@ function App(config) {
       }, self.session.data.points);
 
       self.progress.message("Waiting for decryption keys that can decrypt results.");
+      this.update_progress(2, x => x/3 + 66.666);
       const response_two = await self.io.give({
         msg: {"step_two": req_two},
         update_progress: true
