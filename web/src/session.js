@@ -210,37 +210,51 @@ function Session(app, state, selfRoles) {
   };
 
   this.services = async function (servicesRequest) {
-    const keySecret = new Uint8Array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
-    const keyPublic = sodium.crypto_scalarmult_base(keySecret);
-    if ("public_key" in servicesRequest) {         
-      return {'public_key': [sodium.to_base64(keyPublic, 1)]};
-    } else if ("associates_intersect_unmask_keys" in servicesRequest) {
-      const req = servicesRequest["associates_intersect_unmask_keys"];
-
-      const keysUnmask = sodium.crypto_core_ristretto255_scalar_invert(
-        sodium.crypto_box_seal_open(
-          sodium.from_base64(req.otherKeysMaskEncrypted, 1),
-          keyPublic, keySecret
-        )
-      );
-      const unkey = sodium.crypto_core_ristretto255_scalar_invert(
-        sodium.crypto_box_seal_open(
-          sodium.from_base64(req.keyEncrypted, 1),
-          keyPublic, keySecret
-        )
-      );
-      const otherUnkeyed = await self.app.mapAsyncWithProgress(function (keyedMasked) {
-        return sodium.to_base64(sodium.crypto_scalarmult_ristretto255(unkey, sodium.from_base64(keyedMasked, 1)), 1);
-      }, req.otherKeyedMasked);
-      const otherKeysUnmasked = await self.app.mapAsyncWithProgress(function (key, i) {
-        if (req.selfMasked.indexOf(otherUnkeyed[i]) != -1) {
-          return sodium.to_base64(sodium.crypto_scalarmult_ristretto255(keysUnmask, sodium.from_base64(key, 1)), 1);
-        } else {
-          return key;
+    if ("services" in self.app.config) {
+      const response_ = await fetch(
+        self.app.config.services.url,
+        {
+          method: 'POST',
+          headers: {"Content-type": "application/json", "x-api-key": self.app.config.services.key},
+          body: JSON.stringify(servicesRequest)
         }
-      }, req.otherKeysMasked);
+      );
+      const response = await response_.json();
+      console.log(response);
+      return response;
+    } else {
+      const keySecret = new Uint8Array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
+      const keyPublic = sodium.crypto_scalarmult_base(keySecret);
+      if ("public_key" in servicesRequest) {         
+        return {'public_key': [sodium.to_base64(keyPublic, 1)]};
+      } else if ("associates_intersect_unmask_keys" in servicesRequest) {
+        const req = servicesRequest["associates_intersect_unmask_keys"];
 
-      return {"keys": otherKeysUnmasked};
+        const keysUnmask = sodium.crypto_core_ristretto255_scalar_invert(
+          sodium.crypto_box_seal_open(
+            sodium.from_base64(req.otherKeysMaskEncrypted, 1),
+            keyPublic, keySecret
+          )
+        );
+        const unkey = sodium.crypto_core_ristretto255_scalar_invert(
+          sodium.crypto_box_seal_open(
+            sodium.from_base64(req.keyEncrypted, 1),
+            keyPublic, keySecret
+          )
+        );
+        const otherUnkeyed = await self.app.mapAsyncWithProgress(function (keyedMasked) {
+          return sodium.to_base64(sodium.crypto_scalarmult_ristretto255(unkey, sodium.from_base64(keyedMasked, 1)), 1);
+        }, req.otherKeyedMasked);
+        const otherKeysUnmasked = await self.app.mapAsyncWithProgress(function (key, i) {
+          if (req.selfMasked.indexOf(otherUnkeyed[i]) != -1) {
+            return sodium.to_base64(sodium.crypto_scalarmult_ristretto255(keysUnmask, sodium.from_base64(key, 1)), 1);
+          } else {
+            return key;
+          }
+        }, req.otherKeysMasked);
+
+        return {"keys": otherKeysUnmasked};
+      }
     }
   };
 }
