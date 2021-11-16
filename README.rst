@@ -13,12 +13,12 @@ Overview of Components
 
 This repository consists of the core library and two template applications: one intended for deployment on AWS EC2 and allowing enrichment using large-scale data sets hosted in the cloud (*i.e.*, on AWS EC2), and one intended as a lightweight web-based tool in which the data contributions from both sides are browser-scale::
 
-     ├─ nthassociates.py ....... Core library module
-     ├─ requirements.txt ....... Dependencies
-     ├─ README.rst ............. Overview and documentation
+     ├─ nthassociates/ .............. Core library package
+     ├─ requirements.txt ............ Dependencies
+     ├─ README.rst .................. Overview and documentation
      │
-     ├─ web/ ................... Lightweight application for browsers
-     └─ cloud-aws-ec2/ ......... Cloud-based application for for EC2
+     ├─ web/ ........................ Lightweight application for browsers
+     └─ cloud-aws-ec2/ .............. Cloud-based application for EC2
 
 Conventions
 -----------

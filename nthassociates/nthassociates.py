@@ -1,9 +1,7 @@
-"""Service functionalities for nth.associates.
-
+"""
 Functionalities and data structures for the nth.associates
 secure data association and enrichment service-side component.
 """
-
 import base64
 import json
 import mr4mp
@@ -117,5 +115,5 @@ class session: # pylint: disable=R0903
         self.data = None
 
         if self.path is not None:
-            with open(self.path) as path_file:
+            with open(self.path, encoding='utf-8') as path_file:
                 self.data = json.load(path_file)
