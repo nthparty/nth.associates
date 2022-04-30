@@ -101,8 +101,8 @@ function Session(app, state, selfRoles) {
       // Do not shuffle keyed data before contributing.
       stepResult.data.masked.keyed = data;
 
-      const response_ = await self.services({"public_key": []});
-      const keyPublic = sodium.from_base64(response_['public_key'][0], 1);
+      const response_ = await self.services({"associates_public_key": []});
+      const keyPublic = sodium.from_base64(response_['associates_public_key'][0], 1);
       stepResult.data.keyEncrypted = sodium.to_base64(sodium.crypto_box_seal(self.protocol._key, keyPublic), 1);
 
       const keysMask = sodium.crypto_core_ristretto255_scalar_random();
@@ -225,8 +225,8 @@ function Session(app, state, selfRoles) {
     } else {
       const keySecret = new Uint8Array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
       const keyPublic = sodium.crypto_scalarmult_base(keySecret);
-      if ("public_key" in servicesRequest) {         
-        return {'public_key': [sodium.to_base64(keyPublic, 1)]};
+      if ("associates_public_key" in servicesRequest) {         
+        return {"associates_public_key": [sodium.to_base64(keyPublic, 1)]};
       } else if ("associates_intersect_unmask_keys" in servicesRequest) {
         const req = servicesRequest["associates_intersect_unmask_keys"];
 

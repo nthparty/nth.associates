@@ -7,8 +7,8 @@
   "maximumCSVRowCount": 100000,
   "operations": {"toggleFirstRow": true, "domain": false, "join": true, "groupBy": false},
   "services": {
-    "url": "https://dev.nth.services/bwqc0s25CZ8",
-    "key": "rtsbRFIU0C7QdQehDd3KS1iPXTh5gYeo2gpbF5vS"
+    "url": "https://api.nth.associates/bwqc0s25CZ8",
+    "key": "bbiqV1Xb0EPmS7PpGGtBx1r1WMvNROBWHe4S6y76"
   },
   "simulatedDataSizes": [50, 500, 5000],
   "socialMediaSharing": false,
